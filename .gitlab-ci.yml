@@ -1,0 +1,167 @@
+image: docker:stable
+services:
+  - docker:dind
+
+stages:
+  - build
+  - clean
+  - deploy_devel
+  - deploy_test
+  - deploy_prod
+
+variables:
+  CONTAINER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  CONTAINER_IMAGE_TEST: $CI_REGISTRY_IMAGE/test:$CI_COMMIT_SHORT_SHA
+  CONTAINER_IMAGE_NGINX: $CI_REGISTRY_IMAGE/nginx:$CI_COMMIT_SHORT_SHA
+  CONTAINER_IMAGE_SOLR: $CI_REGISTRY_IMAGE/solr:$CI_COMMIT_SHORT_SHA
+  CONTAINER_IMAGE_SOLR_TEST: $CI_REGISTRY_IMAGE/solr_test:$CI_COMMIT_SHORT_SHA
+  REPO_PATH: "/home/deploy/archivesspace-docker"
+  CONNECT_DEVEL: "deploy@findingaids.devel.lib.msu.edu"
+  CONNECT_TEST: "deploy@findingaids.test.lib.msu.edu"
+  CONNECT_PROD: "deploy@findingaids.lib.msu.edu"
+
+before_script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+build_solr:
+  stage: build
+  tags:
+    - msul
+  only:
+    - master
+  script:
+    - docker build --build-arg AS_VERSION="v2.7.1" --pull -t $CONTAINER_IMAGE_SOLR ./solr
+    - docker push $CONTAINER_IMAGE_SOLR
+    - docker build --build-arg AS_VERSION="v2.7.1" --pull -t $CONTAINER_IMAGE_SOLR_TEST ./solr
+    - docker push $CONTAINER_IMAGE_SOLR_TEST
+
+build_nginx:
+  stage: build
+  tags:
+    - msul
+  only:
+    - master
+  script:
+    - docker build --pull -t $CONTAINER_IMAGE_NGINX ./nginx
+    - docker push $CONTAINER_IMAGE_NGINX
+
+build_as_prod:
+  stage: build
+  tags:
+    - msul
+  only:
+    - master
+  script:
+    - docker build --build-arg AS_VERSION="v2.7.1" --build-arg CONFIG_PATCH_FILE="config.patch" --pull -t $CONTAINER_IMAGE .
+    - docker push $CONTAINER_IMAGE
+
+build_as_test:
+  stage: build
+  tags:
+    - msul
+  only:
+    - master
+  script:
+    - docker build --build-arg AS_VERSION="v2.7.1" --build-arg CONFIG_PATCH_FILE="config.test.patch" --pull -t $CONTAINER_IMAGE_TEST .
+    - docker push $CONTAINER_IMAGE_TEST
+
+clean_images:
+  stage: clean
+  tags:
+    - msul
+  only:
+    - master
+  script:
+    - docker image prune -a -f
+
+deploy_devel_job:
+  stage: deploy_devel
+  tags:
+    - msul
+  environment:
+    name: devel
+    url: https://findingaids.devel.lib.msu.edu
+  only:
+    - master
+  script: 
+    - ssh $CONNECT_DEVEL git -C $REPO_PATH reset HEAD --hard
+    - ssh $CONNECT_DEVEL git -C $REPO_PATH fetch origin
+    - ssh $CONNECT_DEVEL git -C $REPO_PATH checkout $CI_COMMIT_SHORT_SHA
+    - ssh $CONNECT_DEVEL sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.yml
+    - ssh $CONNECT_DEVEL sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.test.yml
+    - ssh $CONNECT_DEVEL sudo /bin/cp $REPO_PATH/etc/systemd/system/archivesspace.test.service /etc/systemd/system/archivesspace.service
+    - ssh $CONNECT_DEVEL sudo /bin/systemctl daemon-reload
+    - ssh $CONNECT_DEVEL sudo /bin/systemctl enable archivesspace
+    - ssh $CONNECT_DEVEL sudo /bin/cp $REPO_PATH/etc/logrotate.d/archivesspace-docker /etc/logrotate.d/
+    - ssh $CONNECT_DEVEL sudo /bin/systemctl stop archivesspace
+    - sleep 10
+    - ssh $CONNECT_DEVEL docker container prune -f
+    - ssh $CONNECT_DEVEL docker image prune -f -a
+    - ssh $CONNECT_DEVEL docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ssh $CONNECT_DEVEL docker-compose -f $REPO_PATH/docker-compose.yml -f $REPO_PATH/docker-compose.test.yml pull
+    - ssh $CONNECT_DEVEL sudo /bin/systemctl start archivesspace
+    - sleep 90
+    - ssh $CONNECT_DEVEL sudo /bin/systemctl status archivesspace
+    - ssh $CONNECT_DEVEL "[[ $( curl -s -o /dev/null -I -w \"%{http_code}\" $CI_ENVIRONMENT_URL ) -eq 200 ]]"
+
+deploy_test_job:
+  stage: deploy_test
+  tags:
+    - msul
+  environment:
+    name: test
+    url: https://findingaids.test.lib.msu.edu
+  only:
+    - master
+  when: manual
+  script: 
+    - ssh $CONNECT_TEST git -C $REPO_PATH reset HEAD --hard
+    - ssh $CONNECT_TEST git -C $REPO_PATH fetch origin
+    - ssh $CONNECT_TEST git -C $REPO_PATH checkout $CI_COMMIT_SHORT_SHA
+    - ssh $CONNECT_TEST sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.yml
+    - ssh $CONNECT_TEST sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.test.yml
+    - ssh $CONNECT_TEST sudo /bin/cp $REPO_PATH/etc/systemd/system/archivesspace.test.service /etc/systemd/system/archivesspace.service
+    - ssh $CONNECT_TEST sudo /bin/systemctl daemon-reload
+    - ssh $CONNECT_TEST sudo /bin/systemctl enable archivesspace
+    - ssh $CONNECT_TEST sudo /bin/cp $REPO_PATH/etc/logrotate.d/archivesspace-docker /etc/logrotate.d/
+    - ssh $CONNECT_TEST sudo /bin/systemctl stop archivesspace
+    - sleep 10
+    - ssh $CONNECT_TEST docker container prune -f
+    - ssh $CONNECT_TEST docker image prune -f -a
+    - ssh $CONNECT_TEST docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ssh $CONNECT_TEST docker-compose -f $REPO_PATH/docker-compose.yml -f $REPO_PATH/docker-compose.test.yml pull
+    - ssh $CONNECT_TEST sudo /bin/systemctl start archivesspace
+    - sleep 90
+    - ssh $CONNECT_TEST sudo /bin/systemctl status archivesspace
+    - ssh $CONNECT_TEST "[[ $( curl -s -o /dev/null -I -w \"%{http_code}\" $CI_ENVIRONMENT_URL ) -eq 200 ]]"
+
+deploy_prod_job:
+  stage: deploy_prod
+  tags:
+    - msul
+  environment:
+    name: prod
+    url: https://findingaids.lib.msu.edu
+  only:
+    - master
+  when: manual
+  script: 
+    - ssh $CONNECT_PROD git -C $REPO_PATH reset HEAD --hard
+    - ssh $CONNECT_PROD git -C $REPO_PATH fetch origin
+    - ssh $CONNECT_PROD git -C $REPO_PATH checkout $CI_COMMIT_SHORT_SHA
+    - ssh $CONNECT_PROD sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.yml
+    - ssh $CONNECT_PROD sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.test.yml
+    - ssh $CONNECT_PROD sudo /bin/cp $REPO_PATH/etc/systemd/system/archivesspace.service /etc/systemd/system/archivesspace.service
+    - ssh $CONNECT_PROD sudo /bin/systemctl daemon-reload
+    - ssh $CONNECT_PROD sudo /bin/systemctl enable archivesspace
+    - ssh $CONNECT_PROD sudo /bin/cp $REPO_PATH/etc/logrotate.d/archivesspace-docker /etc/logrotate.d/
+    - ssh $CONNECT_PROD sudo /bin/systemctl stop archivesspace
+    - sleep 10
+    - ssh $CONNECT_PROD docker container prune -f
+    - ssh $CONNECT_PROD docker image prune -f -a
+    - ssh $CONNECT_PROD docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ssh $CONNECT_PROD docker-compose -f $REPO_PATH/docker-compose.yml  pull
+    - ssh $CONNECT_PROD sudo /bin/systemctl start archivesspace
+    - sleep 90
+    - ssh $CONNECT_PROD sudo /bin/systemctl status archivesspace
+    - ssh $CONNECT_PROD "[[ $( curl -s -o /dev/null -I -w \"%{http_code}\" $CI_ENVIRONMENT_URL ) -eq 200 ]]"

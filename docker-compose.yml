@@ -1,0 +1,112 @@
+version: '3.7'
+services:
+  archivesspace:
+    image: registry.gitlab.msu.edu/msu-libraries/public/archivesspace-docker:_TAG_
+    restart: always
+    container_name: archivesspace
+    expose:
+      - "8080"
+      - "8081"
+      - "8082"
+      - "8089"
+      - "8090"
+    depends_on:
+      - db
+      - solr
+    environment:
+      APPCONFIG_DB_URL: 'jdbc:mysql://db:3306/archivesspace?useUnicode=true&characterEncoding=UTF-8&user=as&password=as123'
+      # solr config
+      APPCONFIG_ENABLE_SOLR: 'false'
+      APPCONFIG_SOLR_URL: 'http://solr:8983/solr/archivesspace'
+      # proxy config
+      APPCONFIG_FRONTEND_PROXY_URL: 'http://localhost/staff/'
+      APPCONFIG_OAI_PROXY_URL: 'http://localhost/oai'
+      APPCONFIG_PUBLIC_PROXY_URL: 'http://localhost/'
+      JAVA_OPTS: "-Djava.awt.headless=true -Dfile.encoding=UTF-8 -server -Xss1024k -Xmx6144m -Djavax.accessibility.assistive_technologies=''"
+      ASPACE_JAVA_XMX: "-Xmx6144m"
+      ASPACE_JAVA_XSS: "-Xss1024k"
+    networks:
+      nonroutable_net:
+    volumes:
+      - aspace_logs:/archivesspace/logs
+      - aspace_data:/archivesspace/data
+  db:
+    image: mariadb:10.5.5
+    container_name: db
+    command: --character-set-server=utf8mb4 --innodb_buffer_pool_size=2G --log_bin_trust_function_creators=1 --log_error=/var/log/mysql/mysql_error.log
+    expose:
+      - "3306"
+    volumes:
+      - db:/var/lib/mysql
+      - db_logs:/var/log/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: archivesspace
+      MYSQL_USER: as
+      MYSQL_PASSWORD: as123
+    networks:
+      nonroutable_net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+  solr:
+    image: registry.gitlab.msu.edu/msu-libraries/public/archivesspace-docker/solr:_TAG_
+    container_name: solr
+    restart: always
+    environment:
+      SOLR_JAVA_MEM: "-Xms1g -Xmx1g"
+    expose:
+      - "8983"
+    networks:
+      nonroutable_net:
+    volumes:
+      - solr:/opt/solr/server/solr/archivesspace/data
+      - solr_logs:/opt/solr/server/logs
+  nginx:
+    image: registry.gitlab.msu.edu/msu-libraries/public/archivesspace-docker/nginx:_TAG_
+    container_name: nginx
+    restart: always
+    ports:
+     - target: 443
+       published: 443
+       mode: host
+       protocol: tcp
+     - target: 80
+       published: 80
+       mode: host
+       protocol: tcp
+    links:
+      - archivesspace
+      - solr
+    depends_on:
+      - archivesspace
+      - solr
+    networks:
+      nonroutable_net:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+    volumes:
+      - ssl:/ssl
+      - nginx_logs:/var/log/nginx
+
+networks:
+    nonroutable_net:
+      driver: bridge
+      ipam:
+        config:
+          - subnet: 192.168.0.0/16
+volumes:
+  solr:
+  ssl:
+  aspace_data:
+  db:
+  aspace_logs:
+  solr_logs:
+  nginx_logs:
+  db_logs:
