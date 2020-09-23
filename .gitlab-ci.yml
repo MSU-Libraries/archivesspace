@@ -5,9 +5,7 @@ services:
 stages:
   - build
   - clean
-  - deploy_devel
-  - deploy_test
-  - deploy_prod
+  - deploy
 
 variables:
   CONTAINER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
