@@ -2,6 +2,11 @@ version: '3.7'
 services:
   archivesspace:
     image: registry.gitlab.msu.edu/msu-libraries/public/archivesspace-docker:_TAG_
+    build:
+      context: .
+      args:
+        AS_VERSION: "v2.7.1"
+        CONFIG_PATCH_FILE: "config.patch"
     restart: always
     container_name: archivesspace
     expose:
@@ -19,9 +24,9 @@ services:
       APPCONFIG_ENABLE_SOLR: 'false'
       APPCONFIG_SOLR_URL: 'http://solr:8983/solr/archivesspace'
       # proxy config
-      APPCONFIG_FRONTEND_PROXY_URL: 'http://localhost/staff/'
-      APPCONFIG_OAI_PROXY_URL: 'http://localhost/oai'
-      APPCONFIG_PUBLIC_PROXY_URL: 'http://localhost/'
+      APPCONFIG_FRONTEND_PROXY_URL: 'https://TODO.edu/staff/'
+      APPCONFIG_OAI_PROXY_URL: 'https://TODO.edu/oai/'
+      APPCONFIG_PUBLIC_PROXY_URL: 'https://TODO.edu/'
       JAVA_OPTS: "-Djava.awt.headless=true -Dfile.encoding=UTF-8 -server -Xss1024k -Xmx6144m -Djavax.accessibility.assistive_technologies=''"
       ASPACE_JAVA_XMX: "-Xmx6144m"
       ASPACE_JAVA_XSS: "-Xss1024k"
@@ -54,6 +59,10 @@ services:
         max-file: "10"
   solr:
     image: registry.gitlab.msu.edu/msu-libraries/public/archivesspace-docker/solr:_TAG_
+    build:
+      context: ./solr
+      args:
+          AS_VERSION: "v2.7.1"
     container_name: solr
     restart: always
     environment:
@@ -67,6 +76,8 @@ services:
       - solr_logs:/opt/solr/server/logs
   nginx:
     image: registry.gitlab.msu.edu/msu-libraries/public/archivesspace-docker/nginx:_TAG_
+    build:
+      context: ./nginx
     container_name: nginx
     restart: always
     ports:
@@ -96,11 +107,11 @@ services:
       - nginx_logs:/var/log/nginx
 
 networks:
-    nonroutable_net:
-      driver: bridge
-      ipam:
-        config:
-          - subnet: 192.168.0.0/16
+  nonroutable_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.0.0/16
 volumes:
   solr:
   ssl:
