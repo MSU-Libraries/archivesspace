@@ -27,12 +27,13 @@ RUN mkdir /source && \
     echo "Using version: $ARCHIVESSPACE_VERSION" && \
     cd / && \
     rm -r /source && \
-    wget https://github.com/archivesspace/archivesspace/releases/download/$ARCHIVESSPACE_VERSION/archivesspace-$ARCHIVESSPACE_VERSION.zip && \
-    unzip /*.zip -d / && \
-    wget https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.20/mysql-connector-java-8.0.20.jar && \
+    wget -q https://github.com/archivesspace/archivesspace/releases/download/$ARCHIVESSPACE_VERSION/archivesspace-$ARCHIVESSPACE_VERSION.zip && \
+    unzip -q /*.zip -d / && \
+    wget -q https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.20/mysql-connector-java-8.0.20.jar && \
     cp /mysql-connector-java-8.0.20.jar /archivesspace/lib/ && \
-    mkdir /archivesspace/plugins/msul-theme && \
-    git clone -b merged https://gitlab.msu.edu/msu-libraries/public/archivesspace-customizations.git /archivesspace/plugins/msul-theme/  && \
+    # Example of using a custom theme
+    #mkdir /archivesspace/plugins/msul-theme && \
+    #git clone -b merged https://gitlab.msu.edu/msu-libraries/public/archivesspace-customizations.git /archivesspace/plugins/msul-theme/  && \
     # TODO -- add in any custom plugin clones here
     # example: git clone https://github.com/AtlasSystems/ArchivesSpace-Aeon-Fulfillment-Plugin /archivesspace/plugins/aeon-fulfillment/ && \
     cd /archivesspace/config && \

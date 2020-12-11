@@ -1,5 +1,5 @@
---- config.rb.orig	2020-09-23 10:27:08.624027794 -0400
-+++ config.rb	2020-09-23 10:30:59.984333592 -0400
+--- config.rb.orig	2020-12-10 20:30:51.624649085 -0500
++++ config.rb	2020-12-10 20:30:51.616648848 -0500
 @@ -53,18 +53,18 @@
  ## command is running. When running as a daemon/service, this is put into a
  ## file in logs/archivesspace.out. You can change this file by changing the log
@@ -27,3 +27,12 @@
  #
  #
  ## Set to true to log all SQL statements.  Note that this will have a performance
+@@ -90,7 +90,7 @@
+ ## For more information about solr parameters, please consult the solr documentation
+ ## here: https://lucene.apache.org/solr/
+ ## Configuring search operator to be AND by default - ANW-427
+-#AppConfig[:solr_params] = { 'mm' => '100%' }
++AppConfig[:solr_params] = { "q.op" => "AND" }
+ #
+ ## Set the application's language (see the .yml files in
+ ## https://github.com/archivesspace/archivesspace/tree/master/common/locales for

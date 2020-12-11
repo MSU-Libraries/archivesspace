@@ -1,0 +1,11 @@
+--- solrconfig.xml.orig	2020-11-17 13:29:43.416113579 -0500
++++ solrconfig.xml	2020-11-19 10:02:13.681260400 -0500
+@@ -1,6 +1,8 @@
+ <?xml version="1.0" encoding="UTF-8" ?>
+ 
+ <config>
++  <lib dir="lib" regex=".*\.jar" />
++
+ 
+   <!-- Controls what version of Lucene various components of Solr
+        adhere to.  Generally, you want to use the latest version to

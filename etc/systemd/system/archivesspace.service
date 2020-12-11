@@ -1,6 +1,9 @@
 [Unit]
 Description=ArchivesSpace Docker stack
 After=docker.service
+Requires=docker.service
+StartLimitInterval=30min
+StartLimitBurst=20
 
 [Service]
 Type=simple
@@ -9,9 +12,7 @@ ExecStart=/usr/local/bin/docker-compose -f /home/deploy/archivesspace-docker/doc
 ExecStop=/usr/local/bin/docker-compose -f /home/deploy/archivesspace-docker/docker-compose.yml down
 ExecReload=/usr/local/bin/docker-compose -f /home/deploy/archivesspace-docker/docker-compose.yml up
 Restart=on-failure
-RestartSec=180
-StartLimitInterval=550
-StartLimitBurst=3
+RestartSec=60s
 
 [Install]
 WantedBy=multi-user.target

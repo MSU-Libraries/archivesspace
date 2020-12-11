@@ -2,10 +2,10 @@ version: '3.7'
 services:
   archivesspace:
     build:
-        context: .
-        args:
-            AS_VERSION: "v2.7.1"
-            CONFIG_PATCH_FILE: "config.patch"
+      context: .
+      args:
+        AS_VERSION: "v2.8.1"
+        CONFIG_PATCH_FILE: "config.patch"
     restart: always
     container_name: archivesspace
     expose:
@@ -60,7 +60,7 @@ services:
     build:
       context: ./solr
       args:
-          AS_VERSION: "v2.7.1"
+          AS_VERSION: "v2.8.1"
     container_name: solr
     restart: always
     environment:
@@ -104,11 +104,11 @@ services:
       - nginx_logs:/var/log/nginx
 
 networks:
-    nonroutable_net:
-      driver: bridge
-      ipam:
-        config:
-          - subnet: 192.168.0.0/16
+  nonroutable_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.0.0/16
 volumes:
   solr:
   ssl:
