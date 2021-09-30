@@ -90,7 +90,7 @@ AppConfig[:indexer_log_level] = "info"
 ## For more information about solr parameters, please consult the solr documentation
 ## here: https://lucene.apache.org/solr/
 ## Configuring search operator to be AND by default - ANW-427
-AppConfig[:solr_params] = { "q.op" => "AND" }
+#AppConfig[:solr_params] = { 'q.op' => 'AND' }
 #
 ## Set the application's language (see the .yml files in
 ## https://github.com/archivesspace/archivesspace/tree/master/common/locales for
@@ -98,7 +98,7 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 #AppConfig[:locale] = :en
 #
 ## Plug-ins to load. They will load in the order specified
-#AppConfig[:plugins] = ['local',  'lcnaf']
+#AppConfig[:plugins] = ['local', 'lcnaf']
 #
 ## The number of concurrent threads available to run background jobs
 ## Resist the urge to set this to a big number as it will affect performance
@@ -286,6 +286,10 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 #AppConfig[:report_pdf_font_paths] = proc { ["#{AppConfig[:backend_url]}/reports/static/fonts/dejavu/DejaVuSans.ttf"] }
 #AppConfig[:report_pdf_font_family] = "\"DejaVu Sans\", sans-serif"
 #
+## option to enable custom reports
+## USE WITH CAUTION - running custom reports that are too complex may cause ASpace to crash
+#Setting temporarily disabled
+#
 ## Path to system Java -- required when creating PDFs on Windows
 #AppConfig[:path_to_java] = "java"
 #
@@ -338,7 +342,9 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 ## Expose external ids in the frontend
 #AppConfig[:show_external_ids] = false
 #
-##
+## Whether to display archival record identifiers in the frontend largetree container
+#Setting temporarily disabled
+#
 ## This sets the allowed size of the request/response header that Jetty will accept (
 ## anything bigger gets a 403 error ). Note if you want to jack this size up,
 ## you will also have to configure your Nginx/Apache  as well if
@@ -482,7 +488,7 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 #
 #AppConfig[:pui_search_results_page_size] = 10
 #AppConfig[:pui_branding_img] = 'archivesspace.small.png'
-#AppConfig[:pui_branding_img_alt_text] = 'ArchivesSpace logo'
+#AppConfig[:pui_branding_img_alt_text] = 'ArchivesSpace - a community served by Lyrasis.'
 #AppConfig[:pui_block_referrer] = true # patron privacy; blocks full 'referrer' when going outside the domain
 #
 ## The number of PDFs that can be generated (in the background) at the same time.
@@ -504,7 +510,7 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 #AppConfig[:pui_hide][:classifications] = false
 #AppConfig[:pui_hide][:search_tab] = false
 ## The following determine globally whether the various "badges" appear on the Repository page
-## can be overriden at repository level below (e.g.:  AppConfig[:pui_repos][{repo_code}][:hide][:counts] = true
+## can be overridden at repository level below (e.g.:  AppConfig[:pui_repos][{repo_code}][:hide][:counts] = true
 #AppConfig[:pui_hide][:resource_badge] = false
 #AppConfig[:pui_hide][:record_badge] = true # hide by default
 #AppConfig[:pui_hide][:digital_object_badge] = false
@@ -516,8 +522,11 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 ## The following determines globally whether the 'container inventory' navigation tab/pill is hidden on resource/collection page
 #AppConfig[:pui_hide][:container_inventory] = false
 #
-## Whether to display linked decaccessions
+## Whether to display linked deaccessions
 #AppConfig[:pui_display_deaccessions] = true
+#
+## Whether to display archival record identifiers in the PUI collection organization tree
+##Setting temporarily disabled
 #
 ##The number of characters to truncate before showing the 'Read More' link on notes
 #AppConfig[:pui_readmore_max_characters] = 450
@@ -652,6 +661,8 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 ## For archival objects: if this option and auto_generate_slugs_with_id are both enabled, then slugs for archival resources will be generated with Component Unique Identifier instead of the identifier.
 #AppConfig[:generate_archival_object_slugs_with_cuid] = false
 #
+## For Accessions browse set if accession date year filter values should be sorted ascending rather than descending (default)
+#AppConfig[:sort_accession_date_filter_asc] = false
 ## Determines if the subject source is shown along with the subject heading in records' subject listings
 ## This can help differentiate between subjects with the same heading
 #AppConfig[:show_source_in_subject_listing] = false
@@ -670,3 +681,18 @@ AppConfig[:solr_params] = { "q.op" => "AND" }
 #
 ## Specifies if the fields that show up in csv should be limited to those in search results
 #AppConfig[:limit_csv_fields] = true
+#
+## Use to specify the maximum number of columns to display when searching or browsing
+#AppConfig[:max_search_columns] = 7
+#
+## For Bulk Import:
+## specifies whether the "Load Digital Objects" button is available at the Resource Level
+#AppConfig[:hide_do_load] = false
+#
+## upper row limit for an excel spreadsheet
+#AppConfig[:bulk_import_rows] = 1000
+## maximum size (in KiloBytes) for an excel spreadsheet
+#AppConfig[:bulk_import_size] = 256
+#
+## For Agents Export
+#AppConfig[:export_eac_agency_code] = false

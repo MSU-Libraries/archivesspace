@@ -5,7 +5,7 @@ services:
     build:
       context: .
       args:
-        AS_VERSION: "v2.8.1"
+        AS_VERSION: "v3.1.0"
         CONFIG_PATCH_FILE: "config.patch"
     restart: always
     container_name: archivesspace
@@ -19,7 +19,7 @@ services:
       - db
       - solr
     environment:
-      APPCONFIG_DB_URL: 'jdbc:mysql://db:3306/archivesspace?useUnicode=true&characterEncoding=UTF-8&user=as&password=as123'
+      APPCONFIG_DB_URL: 'jdbc:mysql://db:3306/archivesspace?useUnicode=true&characterEncoding=UTF-8&user=as&password=as123&serverTimezone=America/Detroit'
       # solr config
       APPCONFIG_ENABLE_SOLR: 'false'
       APPCONFIG_SOLR_URL: 'http://solr:8983/solr/archivesspace'
@@ -36,11 +36,9 @@ services:
       - aspace_logs:/archivesspace/logs
       - aspace_data:/archivesspace/data
   db:
-    image: mariadb:10.5.5
+    image: mariadb:10.6
     container_name: db
     command: --character-set-server=utf8mb4 --innodb_buffer_pool_size=2G --log_bin_trust_function_creators=1 --log_error=/var/log/mysql/mysql_error.log
-    expose:
-      - "3306"
     volumes:
       - db:/var/lib/mysql
       - db_logs:/var/log/mysql
@@ -62,13 +60,11 @@ services:
     build:
       context: ./solr
       args:
-          AS_VERSION: "v2.8.1"
+          AS_VERSION: "v3.1.0"
     container_name: solr
     restart: always
     environment:
       SOLR_JAVA_MEM: "-Xms1g -Xmx1g"
-    expose:
-      - "8983"
     networks:
       nonroutable_net:
     volumes:
