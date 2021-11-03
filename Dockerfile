@@ -1,10 +1,13 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 ARG AS_VERSION
 ARG CONFIG_PATCH_FILE
 
-RUN DEBIAN_FRONTEND=noninteractive \
-    apt-get update && \
-    apt-get -y install --no-install-recommends \
+ENV TZ="America/Detroit"
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y tzdata
+
+RUN apt-get -y install --no-install-recommends \
       build-essential \
       git \
       openjdk-8-jre-headless \
@@ -13,7 +16,8 @@ RUN DEBIAN_FRONTEND=noninteractive \
       wget \
       openssh-server \
       vim \
-      unzip
+      unzip \
+      netbase
 
 COPY . /customizations
 

@@ -1,31 +1,4 @@
-/var/lib/docker/volumes/archivesspace-docker_aspace_logs/_data/*.log {
-  rotate 7
-  daily
-  compress
-  missingok
-  delaycompress
-  copytruncate
-}
-
-/var/lib/docker/volumes/archivesspace-docker_solr_logs/_data/*.log {
-  rotate 7
-  daily
-  compress
-  missingok
-  delaycompress
-  copytruncate
-}
-
-/var/lib/docker/volumes/archivesspace-docker_nginx_logs/_data/*.log {
-  rotate 7
-  daily
-  compress
-  missingok
-  delaycompress
-  copytruncate
-}
-
-/var/lib/docker/volumes/archivesspace-docker_db_logs/_data/*.log {
+/var/lib/docker/volumes/archivesspace*/_data/*.log {
   rotate 7
   daily
   compress
