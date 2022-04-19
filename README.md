@@ -11,6 +11,7 @@ Contents
 * [Resetting the Solr Index](#resetting-the-solr-index)
 * [Backup and Restore](#backup-and-restore)
 * [Developer Notes](#developer-notes)
+* [Troubleshooting](#troubleshooting)
 
 Setup
 ---------------------
@@ -217,8 +218,22 @@ docker exec db /usr/bin/mysqldump -u as --password=as123 archivesspace > archive
 cat archivesspace.sql | docker exec -i db /usr/bin/mysql -u as --password=as123 archivesspace
 ```
 
+Developer Notes
+---------------------
+For development and testing, you can build the images locally instead of using the 
+ones stored in GitLab's container registry.
+```
+docker-compose up -f docker-compose.build.yml --build -d
+```
+
+To connect to an instance for debugging:  
+```
+docker exec -it archivesspace bash
+```
+
 Troubleshooting
----------------
+---------------------
+### General Tips
 You can check which docker containers are running by executing:  
 ```
 docker ps
@@ -246,15 +261,21 @@ docker logs CONTAINER [-f]
 docker logs archivesspace -f
 ```
 
-Developer Notes
----------------------
-For development and testing, you can build the images locally instead of using the 
-ones stored in GitLab's container registry.
-```
-docker-compose up -f docker-compose.build.yml --build -d
-```
+### java.lang.IllegalArgumentException: HOUR_OF_DAY: 2 -> 3:Java::JavaLang::IllegalArgumentException:
+This error will apear in the logs when trying to start ArchivesSpace after daylight savings time.
+Reference: http://lyralists.lyrasis.org/mailman/htdig/archivesspace_users_group/2019-March/006652.html
 
-To connect to an instance for debugging:  
+Basically, the indexer user (or other user, but the indexer is the most likely culprit at 2am)
+is being updated in the database with a time that does not exist due to daylight savings time.
+
+To verify query for users with an `mtime` in the most recent
+[daylight savings date](https://en.wikipedia.org/wiki/Daylight_saving_time_in_the_United_States):  
 ```
-docker exec -it archivesspace bash
+SELECT * FROM user WHERE (user_mtime >= '2022-03-13 02:00:00' and user_mtime <= '2022-03-13 03:00:00') OR (system_mtime >= '2022-03-13 02:00:00' and system_mtime <= '2022-03-13 03:00:00');
+```
+The record that should come back is the `search_indexer` user, but could come back with others too.
+
+To resolve update that user (and/or others) with a valid timestamp:  
+```
+UPDATE user set user_mtime = NOW(), system_mtime=NOW() where username='search_indexer';
 ```
