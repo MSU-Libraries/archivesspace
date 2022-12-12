@@ -1,14 +1,20 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
+
 ARG AS_VERSION
 ARG CONFIG_PATCH_FILE
 
 ENV TZ="America/Detroit"
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y tzdata
+# Copy build args into environment variables
+ENV AS_VERSION=$AS_VERSION \
+    CONFIG_PATCH_FILE=$CONFIG_PATCH_FILE
 
-RUN apt-get -y install --no-install-recommends \
+RUN apt-get update && apt-get install -y tzdata && \
+    apt-get -y install --no-install-recommends \
       build-essential \
+      moreutils \
+      gettext-base \
       git \
       openjdk-8-jre-headless \
       openjdk-8-jdk \
@@ -20,27 +26,32 @@ RUN apt-get -y install --no-install-recommends \
       netbase
 
 COPY . /customizations
-
-COPY docker-startup.sh /startup.sh
+COPY startup.sh /startup.sh
 
 RUN mkdir /source && \
     cd /source && \
     git clone https://github.com/archivesspace/archivesspace.git . && \
-    if [ "x$AS_VERSION" = "x" ] ; then ARCHIVESSPACE_VERSION=${SOURCE_BRANCH:-`git tag -l --sort=v:refname | egrep '^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$' | tail -1`} ; \
-    else ARCHIVESSPACE_VERSION=$AS_VERSION ; fi && \
+    if [ "x$AS_VERSION" = "x" ]; then \
+        ARCHIVESSPACE_VERSION=${SOURCE_BRANCH:-`git tag -l --sort=v:refname | egrep '^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$' | tail -1`} ; \
+    else \
+        ARCHIVESSPACE_VERSION=$AS_VERSION; \
+    fi && \
     echo "Using version: $ARCHIVESSPACE_VERSION" && \
     cd / && \
     rm -r /source && \
     wget -q https://github.com/archivesspace/archivesspace/releases/download/$ARCHIVESSPACE_VERSION/archivesspace-$ARCHIVESSPACE_VERSION.zip && \
     unzip -q /*.zip -d / && \
-    wget -q https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.20/mysql-connector-java-8.0.20.jar && \
-    cp /mysql-connector-java-8.0.20.jar /archivesspace/lib/ && \
-    # Example of using a custom theme
+    wget -q https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.30/mysql-connector-java-8.0.20.jar && \
+    cp /mysql-connector-java-8.0.30.jar /archivesspace/lib/ && \
+    # Examples of how to setup themes and plugins
+    #echo "Setting up plugins" && \
     #mkdir /archivesspace/plugins/msul-theme && \
-    #git clone -b merged https://gitlab.msu.edu/msu-libraries/public/archivesspace-customizations.git /archivesspace/plugins/msul-theme/  && \
-    # TODO -- add in any custom plugin clones here
-    # example: git clone https://github.com/AtlasSystems/ArchivesSpace-Aeon-Fulfillment-Plugin /archivesspace/plugins/aeon-fulfillment/ && \
+    #git clone https://gitlab.msu.edu/msu-libraries/public/archivesspace-customizations.git /archivesspace/plugins/msul-theme/  && \
+    #git clone https://github.com/AtlasSystems/ArchivesSpace-Aeon-Fulfillment-Plugin /archivesspace/plugins/aeon-fulfillment/ && \
+    #git clone https://github.com/MSU-Libraries/accession_slips.git /archivesspace/plugins/accession_slips/ && \
     cd /archivesspace/config && \
+    echo "Performing environment substitution and apply patch" && \
+    envsubst < /customizations/$CONFIG_PATCH_FILE | sponge /customizations/$CONFIG_PATCH_FILE && \
     patch < /customizations/$CONFIG_PATCH_FILE && \
     mv /startup.sh /archivesspace/startup.sh && \
     chmod u+x /archivesspace/startup.sh && \

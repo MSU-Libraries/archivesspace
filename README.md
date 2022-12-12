@@ -17,27 +17,11 @@ Setup
 ---------------------
 
 ### Install docker
-```
-sudo apt update
-sudo apt install apt-transport-https ca-certificates curl gnupg-agent software-properties-common python3-pip apache2
-```
+Follow the [official documentation](https://docs.docker.com/engine/install/) to install
+Docker on your system.
 
-Then add the key and source to apt:  
-```
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-```
-
-Finally, update apt sources and install Docker and supporting packages:  
-```
-sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io
-```
-
-### Install Docker Compose
-```
-sudo pip3 install docker-compose
-```
+# Initialize the swarm
+docker swarm init
 
 ### Setup UFW
 The local firewall needs to be updated to include the IP ranges you 
@@ -77,9 +61,11 @@ We have included a sample `config.patch` file that can be used, but for any
 additional changes you would liek to make to the `config.rb` in the image you 
 can do the following: 
 ```
-# Make my updates in this file
+# Make updates in this file as compared to original config in the release (using a tool like vimdiff)
 vim config.rb
+vimdiff config.rb config.rb.orig
 # Make a new patch file
+./make_patch
 ./make_patch
 ```
 
@@ -87,7 +73,7 @@ vim config.rb
 If you want to load the instance with an initial set of data, you can import from
 a dump file.  
 ```
-cat archivesspace.sql | docker exec -i db /usr/bin/mysql -u as --password=as123 archivesspace
+cat archivesspace.sql | docker exec -i $(docker ps -q -f name=as_db) mysql -u as --password=as123 archivesspace
 ```
 
 ### Option 1: CI/CD Setup
@@ -106,52 +92,13 @@ Now add that as a deploy key to the git repository providing the public key
 ```
 cat /home/deploy/.ssh/id_ed25519.pub
 ```
-
-#### Clone the repository
-Create the local copy of the repository.  
-```
-cd /home/deploy
-sudo -Hu deploy git clone git@gitlab.msu.edu:msu-libraries/public/archivesspace-docker.git
-```
-
-#### Grant access to the GitLab runner user
-From the runner server, get the runner user's public key:  
-```
-ssh gitlab-runner
-sudo cat /home/gitlab-runner/.ssh/id_rsa.pub
-```
-
-Now add that to the deploy server as an `authorized_key`.  
-```
-vim /home/deploy/.ssh/authorized_keys
-```
-
-Test the connection, ensure that it does not prompt for a password:  
-```
-ssh gitlab-runner
-sudo -Hu gitlab-runner ssh deploy@archivesspace
-```
-
-Add the user to the docker group so that it can run the appropriate commands:  
-```
-adduser deploy docker
-```
-
-#### Grant deploy user extra privileges
-The deploy user will need to be able to run `sudo` on a few commands. To do this, 
-edit the sudoers file by running `sudo visudo` and adding the following lines:  
-
-```
-deploy ALL=(root) NOPASSWD: /bin/systemctl restart archivesspace, /bin/cp /home/deploy/archivesspace-docker/etc/systemd/system/archivesspace.service /etc/systemd/system/archivesspace.service, /bin/systemctl daemon-reload, /bin/systemctl enable archivesspace, /bin/systemctl status archivesspace, /bin/cp /home/deploy/archivesspace-docker/etc/logrotate.d/archivesspace-docker /etc/logrotate.d/, /bin/systemctl stop archivesspace, /bin/systemctl start archivesspace
-```
+#### Have a sysadmin create a Group CI/CD variable with the encoded deploy ssh key
 
 ### Option 2: Local Setup
 
-#### Service setup
+#### Deploy the swarm
 ```
-cp etc/systemd/system/archivesspace.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable archivesspace
+docker swarm deploy --with-registry-auth -c docker-compose.yml as
 ```
 
 #### Log rotation
@@ -190,14 +137,9 @@ been successfully created. It should also be used after updating the ArchivesSpa
 schema changes. 
 
 ```
-sudo ./reset-solr.sh
-```
-
-This command *should* remove  the contents of the data directory, but sometimes doesn't. To do so manually:
-```
-docker exec -it archivesspace bash
-rm -rf archivesspace/data/*
-exit
+docker exec $(docker ps -q f name=as_solr) curl -s http://localhost:8983/solr/archivesspace/update --data-binary '<delete><query>*:*</query></delete>' -H 'Content-type:text/xml; charset=utf-8'
+docker exec $(docker ps -q f name=as_archivesspace) rm -rf /archivesspace/data/*
+docker stop $(docker ps -q f name=as_archvesspace) # this essentially "restarts" AS
 ```
 
 **Note**: It takes hours to do a full re-index, so ideally time this at the end of the day so it can complete 
@@ -212,23 +154,21 @@ container registry and can be restored from there if needed.
 Here are example commands to backup and restore the database data:  
 ```
 # Backup
-docker exec db /usr/bin/mysqldump -u as --password=as123 archivesspace > archivesspace.sql
+docker exec $(docker ps -q f name=as_db) mysqldump -u as --password=as123 archivesspace > archivesspace.sql
 
 # Restore
-cat archivesspace.sql | docker exec -i db /usr/bin/mysql -u as --password=as123 archivesspace
+cat archivesspace.sql | docker exec -i $(docker ps -q f name=as_db) mysql -u as --password=as123 archivesspace
 ```
 
 Developer Notes
 ---------------------
-For development and testing, you can build the images locally instead of using the 
-ones stored in GitLab's container registry.
+For local debugging you can override the `command` in the `docker-compose.yml` file
+for the `archivesspace` service and set it to `sleep inf` and re-redeploy the stack:  
 ```
-docker-compose up -f docker-compose.build.yml --build -d
-```
-
-To connect to an instance for debugging:  
-```
-docker exec -it archivesspace bash
+docker stack deploy --with-registry-auth -c docker-compose.yml docker-compose.yml
+docker exec -it $(docker ps -q f name=as_archivesspace) bash
+# to start the AS process within the container if you need to:
+/archivesspace/archivesspace.sh
 ```
 
 Troubleshooting
@@ -237,6 +177,7 @@ Troubleshooting
 You can check which docker containers are running by executing:  
 ```
 docker ps
+docker service ls
 ```
 
 To see which ports the server is listening on run:  
@@ -244,7 +185,7 @@ To see which ports the server is listening on run:
 sudo lsof -i -P -n | grep LISTEN
 ```
 
-To identify all of the data volumes used by  the images:  
+To identify all of the data volumes used by the images:
 ```
 docker volume ls
 ```
@@ -252,13 +193,15 @@ docker volume ls
 To identify the server location of the volume data:  
 ```
 docker volume inspect [volume name]
-docker volume inspect archivesspace-docker_nginx_logs
+docker volume inspect as_nginx_logs
 ```
 
 To see the logs for a container, given the container name (from `docker ps`):  
 ```
 docker logs CONTAINER [-f]
 docker logs archivesspace -f
+# to follow the logs for the service, which generally you'd want to do:
+docker service logs -f as_archivesspace -n100
 ```
 
 ### java.lang.IllegalArgumentException: HOUR_OF_DAY: 2 -> 3:Java::JavaLang::IllegalArgumentException:

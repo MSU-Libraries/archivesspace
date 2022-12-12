@@ -1,75 +1,52 @@
-image: docker:stable
-services:
-  - docker:dind
-
 stages:
-  - build
-  - clean
-  - deploy
+  - Release
 
-variables:
-  CONTAINER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-  CONTAINER_IMAGE_NGINX: $CI_REGISTRY_IMAGE/nginx:$CI_COMMIT_SHORT_SHA
-  CONTAINER_IMAGE_SOLR: $CI_REGISTRY_IMAGE/solr:$CI_COMMIT_SHORT_SHA
-  REPO_PATH: "/home/deploy/archivesspace-docker"
-  CONNECT_PROD: "deploy@example.com"
-# TODO -- update the REPO_PATH and CONNECT_PROD to your instance
+default:
+  image: alpine:latest
 
-before_script:
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-
-# TODO -- you will need to update `example` to `master`, or whichever branch you want to trigger this
-
-build_solr:
-  stage: build
-  only:
-    - example
+Tag Release:
+  stage: Release
+  tags:
+    - msul-shared
+  rules:
+    - if: '$CI_DEFAULT_BRANCH == $CI_COMMIT_BRANCH'
+  before_script:
+    - apk add git
   script:
-    - docker build --build-arg AS_VERSION="v2.7.1" --pull -t $CONTAINER_IMAGE_SOLR ./solr
-    - docker push $CONTAINER_IMAGE_SOLR
+    # Creates a date based release tag. Example: the 2nd push to the default 
+    # branch in August of 2022 would generate a tag of 22.8.2 [YY.M.N]
+    - rm -rf clone/ || true
+    - git clone https://gitlab-ci-token:$RW_CICD_TOKEN@gitlab.msu.edu/msu-libraries/public/archivesspace-docker.git clone/
+    - cd clone/ # doing this to avoid runner cache
+    - major_ver=$(date +'%y.%-m')
+    - latest_patch=$(git tag -l $major_ver* --sort=-v:refname | head -n 1 | cut -d'.' -f 3)
+    - "[ -z $latest_patch ] && cur_patch=-1 || cur_patch=$latest_patch"
+    - patch_ver=$(($cur_patch+1))
+    - TAG=$major_ver.$patch_ver
+    - echo "TAG=$TAG" > ../variables.env
+    - echo "Tagging new release with $TAG"
+    - git tag $TAG
+    - git push origin --tags
+  artifacts:
+    reports:
+      dotenv: variables.env
 
-build_nginx:
-  stage: build
-  only:
-    - example
+GitHub Release:
+  stage: Release
+  tags:
+    - msul-shared
+  rules:
+    - if: '$CI_DEFAULT_BRANCH == $CI_COMMIT_BRANCH'
+  needs:
+    - job: Tag Release
+      artifacts: true
+  before_script:
+    - apk add git curl
   script:
-    - docker build --pull -t $CONTAINER_IMAGE_NGINX ./nginx
-    - docker push $CONTAINER_IMAGE_NGINX
+    - rm -rf archivesspace-docker.git
+    - git clone --mirror https://gitlab-ci-token:$RW_CICD_TOKEN@gitlab.msu.edu/msu-libraries/public/archivesspace-docker.git
+    - cd archivesspace-docker.git
+    - git push --force --mirror https://$GITHUB_USER_TOKEN@github.com/MSU-Libraries/archivesspace-docker.git
+    - echo "{\"tag_name\":\"${TAG}\", \"target_commitish\":\"${CI_COMMIT_SHA}\"}" > data.json
+    - "curl -X POST -H 'Accept: application/vnd.github.v3+json' -u $GITHUB_USER_TOKEN https://api.github.com/repos/MSU-Libraries/archivesspace-docker/releases -d '@data.json'"
 
-build_as:
-  stage: build
-  only:
-    - example
-  script:
-    - docker build --build-arg AS_VERSION="v2.7.1" --build-arg CONFIG_PATCH_FILE="config.patch" --pull -t $CONTAINER_IMAGE .
-    - docker push $CONTAINER_IMAGE
-
-clean_images:
-  stage: clean
-  only:
-    - example
-  script:
-    - docker image prune -a -f
-
-deploy_job:
-  stage: deploy
-  only:
-    - example
-  script: 
-    - ssh $CONNECT_PROD git -C $REPO_PATH reset HEAD --hard
-    - ssh $CONNECT_PROD git -C $REPO_PATH fetch origin
-    - ssh $CONNECT_PROD git -C $REPO_PATH checkout $CI_COMMIT_SHORT_SHA
-    - ssh $CONNECT_PROD sed -i "s/_TAG_/$CI_COMMIT_SHORT_SHA/g" $REPO_PATH/docker-compose.yml
-    - ssh $CONNECT_PROD sudo /bin/cp $REPO_PATH/etc/systemd/system/archivesspace.service /etc/systemd/system/archivesspace.service
-    - ssh $CONNECT_PROD sudo /bin/systemctl daemon-reload
-    - ssh $CONNECT_PROD sudo /bin/systemctl enable archivesspace
-    - ssh $CONNECT_PROD sudo /bin/cp $REPO_PATH/etc/logrotate.d/archivesspace-docker /etc/logrotate.d/
-    - ssh $CONNECT_PROD sudo /bin/systemctl stop archivesspace
-    - sleep 10
-    - ssh $CONNECT_PROD docker container prune -f
-    - ssh $CONNECT_PROD docker image prune -f -a
-    - ssh $CONNECT_PROD docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - ssh $CONNECT_PROD docker-compose -f $REPO_PATH/docker-compose.yml  pull
-    - ssh $CONNECT_PROD sudo /bin/systemctl start archivesspace
-    - sleep 90
-    - ssh $CONNECT_PROD sudo /bin/systemctl status archivesspace
